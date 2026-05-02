@@ -384,6 +384,30 @@
   }
   .flash { animation: flash 0.15s ease 2; }
 
+  /* Halftime toast */
+  #halftime-toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.85);
+    background: var(--work);
+    color: #000;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 3px;
+    padding: 18px 32px;
+    border-radius: 14px;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 100;
+    white-space: nowrap;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  #halftime-toast.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
   /* Pulse on start */
   @keyframes pulse-ring {
     0% { transform: scale(1); }
@@ -454,6 +478,9 @@
     </div>
   </div>
 
+  <!-- HALFTIME TOAST -->
+  <div id="halftime-toast">Half-time. Go, go, go!</div>
+
   <!-- DONE -->
   <div id="done">
     <div class="done-title">FERTIG!</div>
@@ -475,7 +502,8 @@
     // Wall-clock tracking
     phaseStartedAt: null,   // Date.now() when current phase began
     pausedAt: null,         // Date.now() when pause started
-    pausedElapsed: 0        // ms already spent paused in this phase
+    pausedElapsed: 0,       // ms already spent paused in this phase
+    halftimeFired: false    // prevent double-trigger
   };
 
   // Audio context
@@ -520,6 +548,28 @@
     [0, 150, 300, 500].forEach((t, i) => {
       setTimeout(() => beep([880, 1100, 1320, 1760][i], 0.25, 'sine', 0.35), t);
     });
+  }
+
+  function soundHalftime() {
+    try {
+      const utter = new SpeechSynthesisUtterance('Half-time. Go, go, go!');
+      utter.lang = 'en-US';
+      utter.rate = 0.95;
+      utter.pitch = 1.1;
+      utter.volume = 1;
+      window.speechSynthesis.cancel(); // clear queue
+      window.speechSynthesis.speak(utter);
+    } catch(e) {
+      // Fallback to beep if speech unavailable
+      beep(1100, 0.1, 'sine', 0.3);
+      setTimeout(() => beep(1320, 0.2, 'sine', 0.35), 200);
+    }
+  }
+
+  function showHalftimeToast() {
+    const toast = document.getElementById('halftime-toast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2000);
   }
 
   // Config adjustment
@@ -603,6 +653,7 @@
     state.phaseStartedAt = Date.now();
     state.pausedElapsed = 0;
     state.pausedAt = null;
+    state.halftimeFired = false;
   }
 
   function phaseDuration() {
@@ -650,6 +701,16 @@
     const duration = phaseDuration();
     const elapsed = elapsedInPhase();
     const remaining = Math.max(0, Math.ceil((duration - elapsed) / 1000));
+
+    // Halftime — only during work phase
+    if (state.phase === 'work' && !state.halftimeFired) {
+      const half = phaseDuration() / 2;
+      if (elapsed >= half) {
+        state.halftimeFired = true;
+        soundHalftime();
+        showHalftimeToast();
+      }
+    }
 
     // Countdown beeps — fire once per second
     if (remaining <= 3 && remaining > 0 && remaining !== state.lastSecond) {
