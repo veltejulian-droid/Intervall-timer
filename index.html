@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Interval Timer</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Interval">
+<meta name="theme-color" content="#0D0D0D">
+<link id="apple-touch-icon" rel="apple-touch-icon">
+<script>
+  // Generate app icon via canvas and inject as apple-touch-icon
+  (function() {
+    const size = 512;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+
+    // Background — rounded rect
+    const r = size * 0.22;
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.lineTo(size - r, 0);
+    ctx.quadraticCurveTo(size, 0, size, r);
+    ctx.lineTo(size, size - r);
+    ctx.quadraticCurveTo(size, size, size - r, size);
+    ctx.lineTo(r, size);
+    ctx.quadraticCurveTo(0, size, 0, size - r);
+    ctx.lineTo(0, r);
+    ctx.quadraticCurveTo(0, 0, r, 0);
+    ctx.closePath();
+    ctx.fillStyle = '#0D0D0D';
+    ctx.fill();
+
+    // Outer ring track
+    const cx = size / 2, cy = size / 2;
+    const radius = size * 0.36;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = '#1e1e1e';
+    ctx.lineWidth = size * 0.055;
+    ctx.stroke();
+
+    // Ring arc — yellow, ~270 degrees
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, -Math.PI / 2, Math.PI, false);
+    ctx.strokeStyle = '#E8FF3B';
+    ctx.lineWidth = size * 0.055;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Center time text
+    ctx.fillStyle = '#E8FF3B';
+    ctx.font = `bold ${size * 0.22}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('30', cx, cy - size * 0.025);
+
+    // Sub label
+    ctx.fillStyle = '#444';
+    ctx.font = `${size * 0.075}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+    ctx.letterSpacing = '4px';
+    ctx.fillText('INTERVAL', cx, cy + size * 0.19);
+
+    document.getElementById('apple-touch-icon').href = c.toDataURL('image/png');
+  })();
+</script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --work: #E8FF3B;
+    --rest: #3BFFD4;
+    --bg: #0D0D0D;
+    --surface: #161616;
+    --muted: #444;
+    --text: #F0F0F0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Animated background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 60% at 50% 50%, rgba(232,255,59,0.04) 0%, transparent 70%);
+    pointer-events: none;
+    transition: background 0.5s;
+    z-index: 0;
+  }
+  body.rest-mode::before {
+    background: radial-gradient(ellipse 60% 60% at 50% 50%, rgba(59,255,212,0.05) 0%, transparent 70%);
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* HEADER */
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .header h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 14px;
+    letter-spacing: 6px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* SETUP SCREEN */
+  #setup {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .config-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  .config-block {
+    background: var(--surface);
+    border: 1px solid #222;
+    border-radius: 12px;
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .config-block label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .config-block .value-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 40px;
+    line-height: 1;
+    color: var(--work);
+    min-width: 60px;
+    text-align: center;
+  }
+
+  .config-block.rest-block .value-display { color: var(--rest); }
+  .config-block.rounds-block .value-display { color: var(--text); }
+
+  .btn-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .adj-btn {
+    background: #222;
+    border: none;
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+    user-select: none;
+  }
+  .adj-btn:hover { background: #333; }
+  .adj-btn:active { transform: scale(0.9); }
+
+  .start-btn {
+    background: var(--work);
+    color: #000;
+    border: none;
+    border-radius: 14px;
+    padding: 18px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 4px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    width: 100%;
+    margin-top: 4px;
+  }
+  .start-btn:hover { opacity: 0.88; }
+  .start-btn:active { transform: scale(0.97); }
+
+  /* TIMER SCREEN */
+  #timer { display: none; flex-direction: column; align-items: center; gap: 0; }
+  #timer.active { display: flex; }
+
+  .phase-label {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px;
+    letter-spacing: 8px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    transition: color 0.3s;
+    height: 20px;
+  }
+
+  .phase-label.work { color: var(--work); }
+  .phase-label.rest { color: var(--rest); }
+
+  /* Ring */
+  .ring-wrap {
+    position: relative;
+    width: 260px;
+    height: 260px;
+    margin: 8px 0;
+  }
+
+  .ring-wrap svg {
+    position: absolute;
+    inset: 0;
+    transform: rotate(-90deg);
+  }
+
+  .ring-bg {
+    fill: none;
+    stroke: #1e1e1e;
+    stroke-width: 6;
+  }
+
+  .ring-progress {
+    fill: none;
+    stroke: var(--work);
+    stroke-width: 6;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear, stroke 0.4s;
+  }
+
+  .ring-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .time-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 88px;
+    line-height: 1;
+    letter-spacing: -2px;
+    transition: color 0.3s;
+    color: var(--work);
+  }
+
+  .time-display.rest { color: var(--rest); }
+
+  .round-info {
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* Round dots */
+  .round-dots {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: 16px 0 20px;
+    max-width: 300px;
+  }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #222;
+    border: 1.5px solid #333;
+    transition: background 0.3s, border-color 0.3s;
+  }
+  .dot.done { background: var(--work); border-color: var(--work); }
+  .dot.current { background: transparent; border-color: var(--work); box-shadow: 0 0 6px var(--work); }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .ctrl-btn {
+    flex: 1;
+    padding: 15px;
+    border: 1px solid #2a2a2a;
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .ctrl-btn:hover { background: #1e1e1e; border-color: #333; }
+
+  .ctrl-btn.primary {
+    background: #1e1e1e;
+    border-color: #333;
+  }
+
+  /* Done screen */
+  #done {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    text-align: center;
+  }
+  #done.active { display: flex; }
+
+  .done-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 64px;
+    letter-spacing: 4px;
+    color: var(--work);
+    line-height: 1;
+  }
+
+  .done-sub {
+    color: var(--muted);
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .reset-btn {
+    background: transparent;
+    border: 1px solid #333;
+    color: var(--text);
+    border-radius: 12px;
+    padding: 14px 40px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    margin-top: 10px;
+  }
+  .reset-btn:hover { border-color: var(--work); background: rgba(232,255,59,0.05); }
+
+  /* Flash animation */
+  @keyframes flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .flash { animation: flash 0.15s ease 2; }
+
+  /* Pulse on start */
+  @keyframes pulse-ring {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+    100% { transform: scale(1); }
+  }
+  .pulse { animation: pulse-ring 0.3s ease; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="header">
+    <h1>Interval Timer</h1>
+  </div>
+
+  <!-- SETUP -->
+  <div id="setup">
+    <div class="config-grid">
+      <div class="config-block">
+        <label>Arbeit</label>
+        <div class="value-display" id="workDisplay">30</div>
+        <div class="btn-row">
+          <button class="adj-btn" onclick="adjust('work',-5)">−</button>
+          <button class="adj-btn" onclick="adjust('work',5)">+</button>
+        </div>
+      </div>
+      <div class="config-block rest-block">
+        <label>Pause</label>
+        <div class="value-display" id="restDisplay">10</div>
+        <div class="btn-row">
+          <button class="adj-btn" onclick="adjust('rest',-5)">−</button>
+          <button class="adj-btn" onclick="adjust('rest',5)">+</button>
+        </div>
+      </div>
+      <div class="config-block rounds-block">
+        <label>Runden</label>
+        <div class="value-display" id="roundsDisplay">10</div>
+        <div class="btn-row">
+          <button class="adj-btn" onclick="adjust('rounds',-1)">−</button>
+          <button class="adj-btn" onclick="adjust('rounds',1)">+</button>
+        </div>
+      </div>
+    </div>
+    <button class="start-btn" onclick="startTimer()">START</button>
+  </div>
+
+  <!-- TIMER -->
+  <div id="timer">
+    <div class="phase-label" id="phaseLabel">ARBEIT</div>
+
+    <div class="ring-wrap" id="ringWrap">
+      <svg viewBox="0 0 260 260" width="260" height="260">
+        <circle class="ring-bg" cx="130" cy="130" r="118"/>
+        <circle class="ring-progress" id="ringProgress" cx="130" cy="130" r="118"/>
+      </svg>
+      <div class="ring-center">
+        <div class="time-display" id="timeDisplay">30</div>
+        <div class="round-info" id="roundInfo">RUNDE 1 / 10</div>
+      </div>
+    </div>
+
+    <div class="round-dots" id="roundDots"></div>
+
+    <div class="controls">
+      <button class="ctrl-btn" onclick="resetTimer()">Reset</button>
+      <button class="ctrl-btn primary" id="pauseBtn" onclick="togglePause()">Pause</button>
+    </div>
+  </div>
+
+  <!-- DONE -->
+  <div id="done">
+    <div class="done-title">FERTIG!</div>
+    <div class="done-sub" id="doneStats"></div>
+    <button class="reset-btn" onclick="resetTimer()">Nochmal</button>
+  </div>
+</div>
+
+<script>
+  // State
+  let config = { work: 30, rest: 10, rounds: 10 };
+  let state = {
+    phase: 'work',
+    round: 1,
+    timeLeft: 30,
+    running: false,
+    paused: false,
+    interval: null,
+    // Wall-clock tracking
+    phaseStartedAt: null,   // Date.now() when current phase began
+    pausedAt: null,         // Date.now() when pause started
+    pausedElapsed: 0        // ms already spent paused in this phase
+  };
+
+  // Audio context
+  let audioCtx = null;
+
+  function getAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+
+  function beep(freq, duration, type = 'sine', vol = 0.4) {
+    try {
+      const ctx = getAudio();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(vol, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch(e) {}
+  }
+
+  function soundWorkStart() {
+    beep(880, 0.12, 'sine', 0.35);
+    setTimeout(() => beep(1100, 0.18, 'sine', 0.3), 100);
+  }
+
+  function soundRestStart() {
+    beep(660, 0.15, 'sine', 0.3);
+    setTimeout(() => beep(440, 0.25, 'sine', 0.25), 130);
+  }
+
+  function soundCountdown() {
+    beep(660, 0.08, 'square', 0.2);
+  }
+
+  function soundDone() {
+    [0, 150, 300, 500].forEach((t, i) => {
+      setTimeout(() => beep([880, 1100, 1320, 1760][i], 0.25, 'sine', 0.35), t);
+    });
+  }
+
+  // Config adjustment
+  function adjust(key, delta) {
+    if (key === 'work') {
+      config.work = Math.max(5, config.work + delta);
+      document.getElementById('workDisplay').textContent = config.work;
+    } else if (key === 'rest') {
+      config.rest = Math.max(5, config.rest + delta);
+      document.getElementById('restDisplay').textContent = config.rest;
+    } else {
+      config.rounds = Math.max(1, Math.min(20, config.rounds + delta));
+      document.getElementById('roundsDisplay').textContent = config.rounds;
+    }
+  }
+
+  // Ring
+  const CIRCUMFERENCE = 2 * Math.PI * 118;
+
+  function updateRing(fraction) {
+    const ring = document.getElementById('ringProgress');
+    ring.style.strokeDasharray = CIRCUMFERENCE;
+    ring.style.strokeDashoffset = CIRCUMFERENCE * (1 - fraction);
+  }
+
+  // Dots
+  function buildDots() {
+    const container = document.getElementById('roundDots');
+    container.innerHTML = '';
+    for (let i = 1; i <= config.rounds; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+      dot.id = `dot-${i}`;
+      container.appendChild(dot);
+    }
+  }
+
+  function updateDots(currentRound) {
+    for (let i = 1; i <= config.rounds; i++) {
+      const dot = document.getElementById(`dot-${i}`);
+      if (!dot) continue;
+      dot.className = 'dot';
+      if (i < currentRound) dot.classList.add('done');
+      else if (i === currentRound) dot.classList.add('current');
+    }
+  }
+
+  // UI update
+  function refreshUI() {
+    const timeEl = document.getElementById('timeDisplay');
+    const phaseEl = document.getElementById('phaseLabel');
+    const roundEl = document.getElementById('roundInfo');
+    const ring = document.getElementById('ringProgress');
+
+    const total = state.phase === 'work' ? config.work : config.rest;
+    const elapsed = elapsedInPhase();
+    const fraction = Math.max(0, Math.min(1, 1 - elapsed / (total * 1000)));
+
+    timeEl.textContent = state.timeLeft;
+    roundEl.textContent = `RUNDE ${state.round} / ${config.rounds}`;
+    updateRing(fraction);
+    updateDots(state.round);
+
+    if (state.phase === 'work') {
+      phaseEl.textContent = 'ARBEIT';
+      phaseEl.className = 'phase-label work';
+      timeEl.className = 'time-display';
+      ring.style.stroke = 'var(--work)';
+      document.body.classList.remove('rest-mode');
+    } else {
+      phaseEl.textContent = 'PAUSE';
+      phaseEl.className = 'phase-label rest';
+      timeEl.className = 'time-display rest';
+      ring.style.stroke = 'var(--rest)';
+      document.body.classList.add('rest-mode');
+    }
+  }
+
+  // Timer logic
+  function startPhase() {
+    state.phaseStartedAt = Date.now();
+    state.pausedElapsed = 0;
+    state.pausedAt = null;
+  }
+
+  function phaseDuration() {
+    return (state.phase === 'work' ? config.work : config.rest) * 1000;
+  }
+
+  // How many ms have actually elapsed in the current phase (excluding paused time)
+  function elapsedInPhase() {
+    const wallElapsed = Date.now() - state.phaseStartedAt;
+    const pausedSoFar = state.pausedAt
+      ? state.pausedElapsed + (Date.now() - state.pausedAt)
+      : state.pausedElapsed;
+    return wallElapsed - pausedSoFar;
+  }
+
+  function startTimer() {
+    getAudio();
+
+    state.phase = 'work';
+    state.round = 1;
+    state.running = true;
+    state.paused = false;
+    startPhase();
+
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('done').classList.remove('active');
+    const timerEl = document.getElementById('timer');
+    timerEl.style.display = 'flex';
+    timerEl.classList.add('active');
+
+    buildDots();
+
+    // Track last displayed second for countdown beeps
+    state.lastSecond = config.work;
+    refreshUI();
+    soundWorkStart();
+
+    clearInterval(state.interval);
+    state.interval = setInterval(tick, 100); // poll every 100ms for accuracy
+  }
+
+  function tick() {
+    if (state.paused || !state.running) return;
+
+    const duration = phaseDuration();
+    const elapsed = elapsedInPhase();
+    const remaining = Math.max(0, Math.ceil((duration - elapsed) / 1000));
+
+    // Countdown beeps — fire once per second
+    if (remaining <= 3 && remaining > 0 && remaining !== state.lastSecond) {
+      soundCountdown();
+    }
+
+    state.lastSecond = remaining;
+    state.timeLeft = remaining;
+
+    if (elapsed >= duration) {
+      // Phase over — transition
+      if (state.phase === 'work') {
+        state.phase = 'rest';
+        startPhase();
+        state.lastSecond = config.rest;
+        soundRestStart();
+      } else {
+        if (state.round >= config.rounds) {
+          finishTimer();
+          return;
+        }
+        state.round++;
+        state.phase = 'work';
+        startPhase();
+        state.lastSecond = config.work;
+        soundWorkStart();
+
+        const wrap = document.getElementById('ringWrap');
+        wrap.classList.remove('pulse');
+        void wrap.offsetWidth;
+        wrap.classList.add('pulse');
+      }
+    }
+
+    refreshUI();
+  }
+
+  function finishTimer() {
+    clearInterval(state.interval);
+    state.running = false;
+    document.body.classList.remove('rest-mode');
+    soundDone();
+
+    document.getElementById('timer').classList.remove('active');
+    document.getElementById('timer').style.display = 'none';
+
+    const total = (config.work + config.rest) * config.rounds;
+    const min = Math.floor(total / 60);
+    const sec = total % 60;
+    document.getElementById('doneStats').textContent =
+      `${config.rounds} Runden · ${min > 0 ? min + ' min ' : ''}${sec > 0 ? sec + ' sek' : ''}`;
+
+    document.getElementById('done').classList.add('active');
+
+    // Mark all dots done
+    for (let i = 1; i <= config.rounds; i++) {
+      const dot = document.getElementById(`dot-${i}`);
+      if (dot) dot.className = 'dot done';
+    }
+  }
+
+  function togglePause() {
+    if (!state.paused) {
+      // Pausing: record when
+      state.paused = true;
+      state.pausedAt = Date.now();
+    } else {
+      // Resuming: accumulate paused duration
+      state.pausedElapsed += Date.now() - state.pausedAt;
+      state.pausedAt = null;
+      state.paused = false;
+    }
+    document.getElementById('pauseBtn').textContent = state.paused ? 'Weiter' : 'Pause';
+  }
+
+  function resetTimer() {
+    clearInterval(state.interval);
+    state.running = false;
+    state.paused = false;
+    document.body.classList.remove('rest-mode');
+
+    document.getElementById('timer').classList.remove('active');
+    document.getElementById('timer').style.display = 'none';
+    document.getElementById('done').classList.remove('active');
+    document.getElementById('setup').style.display = 'flex';
+    document.getElementById('pauseBtn').textContent = 'Pause';
+  }
+</script>
+</body>
+</html>
