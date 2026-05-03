@@ -428,7 +428,7 @@
   <div id="setup">
     <div class="config-grid">
       <div class="config-block">
-        <label>Arbeit</label>
+        <label>Workout</label>
         <div class="value-display" id="workDisplay">30</div>
         <div class="btn-row">
           <button class="adj-btn" onclick="adjust('work',-5)">−</button>
@@ -457,7 +457,7 @@
 
   <!-- TIMER -->
   <div id="timer">
-    <div class="phase-label" id="phaseLabel">ARBEIT</div>
+    <div class="phase-label" id="phaseLabel">Workout</div>
 
     <div class="ring-wrap" id="ringWrap">
       <svg viewBox="0 0 260 260" width="260" height="260">
@@ -634,7 +634,7 @@
     updateDots(state.round);
 
     if (state.phase === 'work') {
-      phaseEl.textContent = 'ARBEIT';
+      phaseEl.textContent = 'Workout';
       phaseEl.className = 'phase-label work';
       timeEl.className = 'time-display';
       ring.style.stroke = 'var(--work)';
